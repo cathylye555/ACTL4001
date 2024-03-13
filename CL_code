@@ -1,0 +1,36 @@
+library(readxl)
+library(dplyr)
+
+# Import data
+mortality_table <- read_excel("Desktop/ACTL4001/combined_data.xlsx", sheet = "mortality_table")
+superlife_data <- read_excel("Desktop/ACTL4001/combined_data.xlsx", sheet = "superlife_data")
+economic_data <- read_excel("Desktop/ACTL4001/combined_data.xlsx", sheet = "economic_data")
+intervention_data <- read_excel("Desktop/ACTL4001/combined_data.xlsx", sheet = "intervention")
+
+#### EDA ####
+# Plot of mortality graph
+plot(mortality_table$`Age`,mortality_table$`Mortality Rate`, pch=19,cex=0.3,
+     xlab="Mortality Rate", 
+     ylab="Age",main="Mortality Rate vs Age")
+
+# Check how many NA's in each variable
+t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.)))))
+
+# Investigate distribution of each variable
+superlife_colnames <- colnames(superlife_data[,-1]) # investigating all columns but policy number
+
+table_function<-function(colname){
+ x<-which(superlife_colnames==colname)
+ return(as.data.frame(table(superlife_data[x+1])))
+} # returns a summary table
+
+naming_function <- function(col){
+  x<-table_function(colname=col)
+  table_name <- paste0( "distribution_",col)
+  assign(table_name,x,env = .GlobalEnv )
+} # assigns table name to summary table
+
+lapply(superlife_colnames,naming_function) # do for all variables
+
+# Investigate death data
+nrow(superlife_data) - sum(is.na(superlife_data$Year.of.Death)) # 914515
