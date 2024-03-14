@@ -14,7 +14,9 @@ plot(mortality_table$`Age`,mortality_table$`Mortality Rate`, pch=19,cex=0.3,
      ylab="Age",main="Mortality Rate vs Age")
 
 # Check how many NA's in each variable
-t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.)))))
+na_count <- t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.))))) # some NA's not showing!!!
+superlife_data <- superlife_data %>% mutate(across(everything(), ~ replace((.), (.)=="NA", NA) )) # Replace character NA's with NA
+na_count<-t(poo %>% summarise(across(everything(), ~ sum(is.na(.))))) # 
 
 # Investigate distribution of each variable
 superlife_colnames <- colnames(superlife_data[,-1]) # investigating all columns but policy number
@@ -32,5 +34,15 @@ naming_function <- function(col){
 
 lapply(superlife_colnames,naming_function) # do for all variables
 
-# Investigate death data
-nrow(superlife_data) - sum(is.na(superlife_data$Year.of.Death)) # 914515
+## Distribution findings
+# 104023 lapsed policies, 6866 "Y" for lapse indicator ?
+# 874139 alive & lapsed policies
+# 40376 deaths 
+
+# Check for any duplicated policy numbers
+sum(duplicated(superlife_data$Policy.number)) # none 
+
+
+ 
+
+
