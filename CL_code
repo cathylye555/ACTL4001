@@ -18,6 +18,10 @@ na_count <- t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.)))
 superlife_data <- superlife_data %>% mutate(across(everything(), ~ replace((.), (.)=="NA", NA) )) # Replace character NA's with NA
 na_count<-t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.))))) # All NA's counted
 
+# Replace NA's with 0's for indicator variables
+superlife_data$Death.indicator[is.na(superlife_data$Death.indicator)] <- 0
+superlife_data$Lapse.Indicator[is.na(superlife_data$Lapse.Indicator)] <- 0
+
 # Investigate distribution of each variable
 superlife_colnames <- colnames(superlife_data[,-1]) # investigating all columns but policy number
 
@@ -65,4 +69,7 @@ cause_of_death <- c("Certain infectious and parasitic diseases",
 cause_of_death_key <- cbind(as.vector(distribution_Cause.of.Death$Cause.of.Death),cause_of_death) # Key
 
 distribution_Cause.of.Death <- cbind(distribution_Cause.of.Death,cause_of_death) # Key added onto distribution
+
+
+
 
