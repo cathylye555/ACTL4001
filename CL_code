@@ -19,7 +19,7 @@ superlife_data <- superlife_data %>% mutate(across(everything(), ~ replace((.), 
 na_count<-t(poo %>% summarise(across(everything(), ~ sum(is.na(.))))) # All NA's counted
 
 # Investigate distribution of each variable
-superlife_colnames <- colnames(superlife_data[,-1]) # all column names excluding policy number
+superlife_colnames <- colnames(superlife_data[,-1]) # investigating all columns but policy number
 
 table_function<-function(colname){
  x<-which(superlife_colnames==colname)
@@ -60,11 +60,9 @@ cause_of_death <- c("Certain infectious and parasitic diseases",
                     "Congenital malformations, deformations and chromosomal abnormalities",
                     "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified",
                     "External causes of morbidity and mortality"
-                    )
+                    ) 
   
-cause_of_death_key <- cbind(as.vector(distribution_Cause.of.Death$Cause.of.Death),cause_of_death)
+cause_of_death_key <- cbind(as.vector(distribution_Cause.of.Death$Cause.of.Death),cause_of_death) # Key
 
-
- 
-
+distribution_Cause.of.Death <- cbind(distribution_Cause.of.Death,cause_of_death) # Key added onto distribution
 
