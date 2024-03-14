@@ -16,7 +16,7 @@ plot(mortality_table$`Age`,mortality_table$`Mortality Rate`, pch=19,cex=0.3,
 # Check how many NA's in each variable
 na_count <- t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.))))) # some NA's not showing!!!
 superlife_data <- superlife_data %>% mutate(across(everything(), ~ replace((.), (.)=="NA", NA) )) # Replace character NA's with NA
-na_count<-t(poo %>% summarise(across(everything(), ~ sum(is.na(.))))) # All NA's counted
+na_count<-t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.))))) # All NA's counted
 
 # Investigate distribution of each variable
 superlife_colnames <- colnames(superlife_data[,-1]) # investigating all columns but policy number
