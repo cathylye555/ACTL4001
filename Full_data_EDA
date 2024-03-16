@@ -8,7 +8,7 @@ options(scipen = 999)
 
 getwd()
 repoDir <- "C:/Users/Peter/OneDrive/Documents/UNSW/ACTL4001"
-source(file.path(repoDir, "ARNAV EDA v1.R"))
+source(file.path(repoDir, "AB_EDA_v1.R"))
 
 superlife_data <- superlife_data %>% as.data.table()
 mortality_table <- mortality_table %>% as.data.table()
