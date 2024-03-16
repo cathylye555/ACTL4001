@@ -1,0 +1,126 @@
+# Set up
+
+library(readxl)
+library(dplyr)
+library(data.table)
+
+options(scipen = 999)
+
+getwd()
+repoDir <- "C:/Users/Peter/OneDrive/Documents/UNSW/ACTL4001"
+source(file.path(repoDir, "ARNAV EDA v1.R"))
+
+superlife_data <- superlife_data %>% as.data.table()
+mortality_table <- mortality_table %>% as.data.table()
+economic_data <- economic_data %>% as.data.table()
+intervention_data <- intervention_data %>% as.data.table()
+
+glimpse(superlife_data)
+
+# Data issue - Lapse.Indicator == 'Y'
+nrow(superlife_data[Lapse.Indicator=='Y' & is.na(Year.of.Lapse), ]) # all Lapse.Indicator =='Y' have a Year.of.Lapse value -> change to 1
+superlife_data[Lapse.Indicator=='Y', Lapse.Indicator := '1']
+
+superlife_data[,Lapse.Indicator := as.numeric(Lapse.Indicator)]
+superlife_data[,Death.indicator := as.numeric(Death.indicator)]
+superlife_data[,Year.of.Death := as.numeric(Year.of.Death)]
+
+# Feature engineering
+
+superlife_data[,age_banded := case_when(
+  Issue.age >= 65 ~ '65+'
+  ,Issue.age >= 55 & Issue.age < 65 ~ '55-64'
+  ,Issue.age >= 25 & Issue.age < 55 ~ '25-54'
+  ,Issue.age >= 15 & Issue.age < 25 ~ '15-24'
+  ,Issue.age >= 0 & Issue.age < 15 ~ '0-15'
+)]
+
+superlife_data[,age_banded_1 := case_when(
+  Issue.age >= 65 ~ '65+'
+  ,Issue.age >= 55 & Issue.age < 65 ~ '55-64'
+  ,Issue.age >= 45 & Issue.age < 55 ~ '45-54'
+  ,Issue.age >= 35 & Issue.age < 45 ~ '35-44'
+  ,Issue.age >= 25 & Issue.age < 35 ~ '25-34'
+  ,Issue.age >= 15 & Issue.age < 25 ~ '15-24'
+  ,Issue.age >= 0 & Issue.age < 15 ~ '0-15'
+)]
+
+superlife_data[,years_to_death := Year.of.Death - Issue.year]
+
+superlife_data[,tenure := ifelse(Death.indicator == 0, 2024 - Issue.year, years_to_death)]
+superlife_data[,tenure_banded := case_when(
+  tenure >= 20 ~ '20+'
+  ,tenure >= 16 & tenure < 20~ '16-19'
+  ,tenure >= 11 & tenure < 16 ~ '11-15'
+  ,tenure >= 6 & tenure < 11 ~ '6-10'
+  ,tenure >= 2 & tenure < 6 ~ '2-5'
+  ,tenure == 1 ~ '1'
+)]
+
+superlife_data[,years_in_book := 2024 - Issue.year]
+superlife_data[,years_in_book_banded := case_when(
+  years_in_book >= 20 ~ '20+'
+  ,years_in_book >= 16 & years_in_book < 20~ '16-19'
+  ,years_in_book >= 11 & years_in_book < 16 ~ '11-15'
+  ,years_in_book >= 6 & years_in_book < 11 ~ '6-10'
+  ,years_in_book >= 2 & years_in_book < 6 ~ '2-5'
+  ,years_in_book == 1 ~ '1'
+)]
+
+### EDA for Lapses ###
+superlife_data[Lapse.Indicator == 1,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Death.indicator)] # none caused by death -> don't need to worry about this
+
+Issue_year_lapse <- superlife_data[Policy.type=='T20'& Death.indicator==0,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator), cnt_Death = sum(Death.indicator)), by=.(Issue.year)] # earlier years much more likely to lapse
+Issue_year_lapse[, `:=` (pct_lapse = round(cnt_lapse/cnt, 4)
+                         ,pct_death  = round(cnt_Death/cnt, 4)
+                         )]
+View(Issue_year_lapse)
+
+Issue_age_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(age_banded_1)] # no trend
+Issue_age_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Issue_age_lapse)
+
+Sex_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Sex)] # no observable trend
+Sex_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Sex_lapse)
+
+Face_amount_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Face.amount)] # no trend
+Face_amount_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Face_amount_lapse[order(Face.amount)])
+
+Smoker_Status_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Smoker.Status)] # no trend
+Smoker_Status_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Smoker_Status_lapse)
+
+Underwriting_Class_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Underwriting.Class)] # no trend
+Underwriting_Class_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Underwriting_Class_lapse)
+
+Urban_vs_Rural_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Urban.vs.Rural)] # no trend
+Urban_vs_Rural_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Urban_vs_Rural_lapse)
+
+Region_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Region)] # no trend
+Region_lapse[, pct := round(cnt_lapse/cnt, 4)]
+# View(Region_lapse)
+
+Distribution_Channel_lapse <- superlife_data[Policy.type=='T20' ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(Distribution.Channel)] # Online much less likely to lapse -> need reason
+Distribution_Channel_lapse[, pct := round(cnt_lapse/cnt, 4)]
+View(Distribution_Channel_lapse)
+
+### Lapse rate or assumptions ###
+Lapse_by_tenure <- superlife_data[Policy.type=='T20'  ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(tenure_banded)]
+Lapse_by_tenure[, pct := round(cnt_lapse/cnt, 4)]
+View(Lapse_by_tenure)
+
+# Check for difference face amounts
+Lapse_by_face_value <- superlife_data[Policy.type=='T20'  ,.(cnt=.N, cnt_lapse = sum(Lapse.Indicator)), by=.(tenure_banded, Face.amount)]
+Lapse_by_face_value[, pct := round(cnt_lapse/cnt, 4)]
+# View(Lapse_by_tenure[order(Face.amount)])
+
+Lapse_by_face_value[Face.amount==50000,]
+Lapse_by_face_value[Face.amount==100000,]
+Lapse_by_face_value[Face.amount==250000,]
+Lapse_by_face_value[Face.amount==500000,]
+Lapse_by_face_value[Face.amount==1000000,]
+Lapse_by_face_value[Face.amount==2000000,]
