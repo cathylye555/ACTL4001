@@ -1,0 +1,267 @@
+# Set up
+
+library(readxl)
+library(dplyr)
+library(data.table)
+
+options(scipen = 999)
+
+getwd()
+repoDir <- "C:/Users/Peter/OneDrive/Documents/UNSW/ACTL4001"
+source(file.path(repoDir, "ARNAV EDA v1.R"))
+
+superlife_data <- superlife_data %>% as.data.table()
+mortality_table <- mortality_table %>% as.data.table()
+economic_data <- economic_data %>% as.data.table()
+intervention_data <- intervention_data %>% as.data.table()
+
+glimpse(superlife_data)
+
+# Data issue - Lapse.Indicator == 'Y'
+nrow(superlife_data[Lapse.Indicator=='Y' & is.na(Year.of.Lapse), ]) # all Lapse.Indicator =='Y' have a Year.of.Lapse value -> change to 1
+superlife_data[Lapse.Indicator=='Y', Lapse.Indicator := '1']
+
+superlife_data[,Lapse.Indicator := as.numeric(Lapse.Indicator)]
+superlife_data[,Death.indicator := as.numeric(Death.indicator)]
+superlife_data[,Year.of.Death := as.numeric(Year.of.Death)]
+
+# Feature engineering
+
+superlife_data[,age_banded := case_when(
+  Issue.age >= 65 ~ '65+'
+  ,Issue.age >= 55 & Issue.age < 65 ~ '55-64'
+  ,Issue.age >= 25 & Issue.age < 55 ~ '25-54'
+  ,Issue.age >= 15 & Issue.age < 25 ~ '15-24'
+  ,Issue.age >= 0 & Issue.age < 15 ~ '0-15'
+)]
+
+superlife_data[,age_banded_1 := case_when(
+  Issue.age >= 65 ~ '65+'
+  ,Issue.age >= 55 & Issue.age < 65 ~ '55-64'
+  ,Issue.age >= 45 & Issue.age < 55 ~ '45-54'
+  ,Issue.age >= 35 & Issue.age < 45 ~ '35-44'
+  ,Issue.age >= 25 & Issue.age < 35 ~ '25-34'
+  ,Issue.age >= 15 & Issue.age < 25 ~ '15-24'
+  ,Issue.age >= 0 & Issue.age < 15 ~ '0-15'
+)]
+
+superlife_data[,years_to_death := Year.of.Death - Issue.year]
+test<- superlife_data[Policy.type=='SPWL' & Death.indicator == 1,.(Issue.year, Year.of.Death, years_to_death, Death.indicator)]
+superlife_data[order(years_to_death),.(cnt=.N), by = .(years_to_death)]
+
+mean(superlife_data[Policy.type=='SPWL' & Death.indicator == 1, years_to_death])
+
+superlife_data[,tenure := ifelse(Death.indicator == 0, 2024 - Issue.year, years_to_death)]
+superlife_data[,tenure_banded := case_when(
+  tenure >= 20 ~ '20+'
+  ,tenure >= 16 & tenure < 20~ '16-19'
+  ,tenure >= 11 & tenure < 16 ~ '11-15'
+  ,tenure >= 6 & tenure < 11 ~ '6-10'
+  ,tenure >= 2 & tenure < 6 ~ '2-5'
+  ,tenure == 1 ~ '1'
+)]
+
+superlife_data[,years_in_book := 2024 - Issue.year]
+superlife_data[,years_in_book_banded := case_when(
+  years_in_book >= 20 ~ '20+'
+  ,years_in_book >= 16 & years_in_book < 20~ '16-19'
+  ,years_in_book >= 11 & years_in_book < 16 ~ '11-15'
+  ,years_in_book >= 6 & years_in_book < 11 ~ '6-10'
+  ,years_in_book >= 2 & years_in_book < 6 ~ '2-5'
+  ,years_in_book == 1 ~ '1'
+)]
+
+
+# Check distributions -> both products
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Policy.type)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Issue.year)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(age_banded)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Sex)]
+superlife_data[order(Face.amount),.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Face.amount)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Smoker.Status)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Underwriting.Class)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Urban.vs.Rural)]
+superlife_data[order(Region),.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Region)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Distribution.Channel)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Death.indicator)]
+superlife_data[,.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Lapse.Indicator)]
+superlife_data[order(Year.of.Lapse),.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Year.of.Lapse)]
+superlife_data[order(Cause.of.Death),.(cnt=.N, pct = round(.N/nrow(superlife_data),4)), by=.(Cause.of.Death)]
+
+### EDA for Death T20 ###
+
+#Issue age
+# higher age -> higher motality -> low prop of  book so maybe we dont need to focux  on this
+Issue_age_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(age_banded)] 
+Issue_age_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Issue_age_death)
+
+# Sex
+# Males twice as likely to die
+Sex_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Sex)] 
+Sex_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Sex_death)
+
+# Face Amount
+# No Trend
+Face_amount_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Face.amount)] 
+Face_amount_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Face_amount_death[order(Face.amount)])
+
+# Smoker Status
+# Smokers six times as likely to die
+Smoker_Status_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Smoker.Status)] # no trend
+Smoker_Status_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Smoker_Status_death)
+
+# Underwriting Class
+# moderate risk is unusually high rate of death -> need a better underwriting process
+Underwriting_Class_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Underwriting.Class)] 
+Underwriting_Class_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Underwriting_Class_death)
+
+# Urban vs Rural
+# no trend
+Urban_vs_Rural_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Urban.vs.Rural)]
+Urban_vs_Rural_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Urban_vs_Rural_death)
+
+# Region
+# no trend
+Region_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Region)] 
+Region_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Region_death)
+
+# Distribution Channel
+# Online much less likely to death -> need reason
+Distribution_Channel_death <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4), cnt_death = sum(Death.indicator)), by=.(Distribution.Channel)] 
+Distribution_Channel_death[, pct_death := round(cnt_death/cnt, 4)]
+# View(Distribution_Channel_death)
+
+# Check age groups of Dist.chan online  vs agent/telemarketer -> hyypothesis is that younger ppl buy policy online
+dist_chan_by_age <- superlife_data[Policy.type=='T20',.(cnt=.N, pct = round(.N/nrow(superlife_data[Policy.type=='T20',]),4)), by=.(Distribution.Channel,age_banded_1)]
+# View(dist_chan_by_age[order(age_banded_1,Distribution.Channel),])
+
+### EDA for Death SPWL ###
+
+# Issue Age
+Issue_age_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                        , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                        , cnt_death = sum(Death.indicator)
+                                                        , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                        )
+                                  , by=.(age_banded)] 
+
+Issue_age_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                  ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                  ,sum_years_to_death = NULL
+)]
+
+View(Issue_age_death) 
+
+# Sex 
+Sex_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                  , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                  , cnt_death = sum(Death.indicator)
+                                                  , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                  )
+                            , by=.(Sex)] 
+
+Sex_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                          ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                          ,sum_years_to_death = NULL
+)]
+
+View(Sex_death)
+
+# Face Amount
+Face_amount_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                          , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                          , cnt_death = sum(Death.indicator)
+                                                          , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                          )
+                                    , by=.(Face.amount)] 
+
+Face_amount_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                          ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                          ,sum_years_to_death = NULL
+                          )]
+
+View(Face_amount_death[order(Face.amount)])
+
+# Smoker Status
+Smoker_Status_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                            , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                            , cnt_death = sum(Death.indicator)
+                                                            , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                            )
+                                      , by=.(Smoker.Status)]
+
+Smoker_Status_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                          ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                          ,sum_years_to_death = NULL
+)]
+
+View(Smoker_Status_death)
+
+# Underwriting Class
+Underwriting_Class_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                                 , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                                 , cnt_death = sum(Death.indicator)
+                                                                 , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                                 )
+                                           , by=.(Underwriting.Class)] 
+
+Underwriting_Class_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                            ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                            ,sum_years_to_death = NULL
+)]
+
+View(Underwriting_Class_death)
+
+# Urban vs Rural
+Urban_vs_Rural_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                             , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                             , cnt_death = sum(Death.indicator)
+                                                             , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                             )
+                                       , by=.(Urban.vs.Rural)] 
+
+Urban_vs_Rural_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                                 ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                                 ,sum_years_to_death = NULL
+)]
+
+# View(Urban_vs_Rural_death)
+
+# Region 
+Region_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                     , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                     , cnt_death = sum(Death.indicator)
+                                                     , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                     )
+                               , by=.(Region)] 
+
+Region_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                                 ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                                 ,sum_years_to_death = NULL
+)]
+
+# View(Region_death)
+
+# Distritbution Channel
+Distribution_Channel_death <- superlife_data[Policy.type=='SPWL',.(cnt=.N
+                                                                   , pct = round(.N/nrow(superlife_data[Policy.type=='SPWL',]),4)
+                                                                   , cnt_death = sum(Death.indicator)
+                                                                   , sum_years_to_death = sum(years_to_death,na.rm = T)
+                                                                   )
+                                             , by=.(Distribution.Channel)]
+
+Distribution_Channel_death[, `:=` (pct_death = round(cnt_death/cnt, 4)
+                     ,avg_years_to_death = round(sum_years_to_death/cnt_death,2)
+                     ,sum_years_to_death = NULL
+)]
+
+View(Distribution_Channel_death)
+
+
