@@ -22,21 +22,21 @@ na_count<-t(superlife_data %>% summarise(across(everything(), ~ sum(is.na(.)))))
 superlife_data$Death.indicator[is.na(superlife_data$Death.indicator)] <- 0
 superlife_data$Lapse.Indicator[is.na(superlife_data$Lapse.Indicator)] <- 0
 
-# Investigate distribution of each variable
-superlife_colnames <- colnames(superlife_data[,-1]) # investigating all columns but policy number
-
-table_function<-function(colname){
- x<-which(superlife_colnames==colname)
- return(as.data.frame(table(superlife_data[x+1])))
+# Investigate distribution of each variable in entire superlife data
+table_function<-function(colname,data){
+  colnames_list = colnames(data[-1])
+  x<-which(colnames_list==colname)
+  return(as.data.frame(table(data[x+1])))
 } # returns a summary table
 
 naming_function <- function(col){
-  x<-table_function(colname=col)
+  x<-table_function(colname=col, data=superlife_data)
+  x <- x %>% mutate(percentage=round(100*Freq/nrow(superlife_data),2)) 
   table_name <- paste0( "distribution_",col)
   assign(table_name,x,env = .GlobalEnv )
 } # assigns table name to summary table
 
-lapply(superlife_colnames,naming_function) # do for all variables
+lapply(colnames(superlife_data[-1]),naming_function) # do for all variables
 
 ## Distribution findings
 # 104023 lapsed policies, 6866 "Y" for lapse indicator ?
@@ -59,7 +59,6 @@ cause_of_death <- c("Certain infectious and parasitic diseases",
                     "Diseases of the skin and subcutaneous tissue",
                     "Diseases of the musculoskeletal system and connective tissue",
                     "Diseases of the genitourinary system",
-                    "NA",
                     "Pregnancy, childbirth and the puerperium",
                     "Congenital malformations, deformations and chromosomal abnormalities",
                     "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified",
@@ -68,8 +67,62 @@ cause_of_death <- c("Certain infectious and parasitic diseases",
   
 cause_of_death_key <- cbind(as.vector(distribution_Cause.of.Death$Cause.of.Death),cause_of_death) # Key
 
-distribution_Cause.of.Death <- cbind(distribution_Cause.of.Death,cause_of_death) # Key added onto distribution
+distribution_Cause.of.Death <- cbind(distribution_Cause.of.Death,cause_of_death_key) # Key added onto distribution
+
+#### Death data EDA for incentives ####
+superlife_death_data <- superlife_data %>% filter(Death.indicator==1)
+superlife_death_data <- superlife_death_data %>% 
+  mutate(Death.age = Issue.age + (as.numeric(Year.of.Death)- Issue.year)) %>% # add age of death column
+  mutate(check = (Death.age - Issue.age)>=0 ) # check age of death >= issue age
+
+sum(superlife_death_data$check) == nrow(superlife_death_data) # check is all true
+
+# Create distributions for all variables
+naming_function_death <- function(col){
+  x<-table_function_all(colname=col,data=superlife_death_data)
+  x <- x %>% mutate(percentage=round(100*Freq/nrow(superlife_death_data),2)) # add % column
+  table_name <- paste0( "death_distribution_",col)
+  assign(table_name,x,env = .GlobalEnv )
+} # assigns table name to summary table
+
+lapply(colnames(superlife_death_data[-1]), naming_function_death) 
+
+# Age 61 is most frequent death age
+death_distribution_Death.age$Death.age[which.max(death_distribution_Death.age$Freq)]
+
+hist(superlife_death_data$Death.age, breaks = 50) # Graph of death ages
+
+# Cause of death
+death_distribution_Cause.of.Death <- left_join(death_distribution_Cause.of.Death,as.data.frame(cause_of_death_key),
+          join_by('Cause.of.Death' == 'V1'),keep=NULL)
+
+sum(is.na(superlife_death_data$Cause.of.Death)) # 836 NA's (2.1%)
+
+  # Investigate cause of death for smokers:
+superlife_death_data %>% filter(Smoker.Status=="S") %>% 
+  group_by(Cause.of.Death) %>% summarise(n=n()) %>% mutate(percent=100*n/sum(n))
+
+# Investigate cause of sex for smokers:
+superlife_death_data %>% filter(Smoker.Status=="S") %>% 
+  group_by(Sex) %>% summarise(n=n()) %>% mutate(percent=100*n/sum(n))
+
+  # Investigate urban/rural for smokers:
+superlife_death_data %>% filter(Smoker.Status=="S") %>% 
+  group_by(Urban.vs.Rural) %>% summarise(n=n()) %>% mutate(percent=100*n/sum(n)) # 75% of smokers that died are male
+
+superlife_data %>% filter(Smoker.Status=="S") %>% 
+  group_by(Urban.vs.Rural) %>% summarise(n=n()) %>% mutate(percent=100*n/sum(n)) # 63% of smokers are male
+
+  # Investigate cause of death for males:
+superlife_death_data %>% filter(Sex=="M") %>% 
+  group_by(Cause.of.Death) %>% summarise(n=n()) %>% mutate(percent=100*n/sum(n))
+
+  # Investigate who dies from circulatory diseases
+superlife_death_data %>% filter(Cause.of.Death=="I00-I99") %>% 
+  group_by(Sex) %>% summarise(n=n()) %>% mutate(percent=100*n/sum(n)) # males 75%, not too surprising as 70% deaths were male
 
 
+#### Base assumptions
+mean(superlife_data$Issue.age)
 
 
